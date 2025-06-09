@@ -194,7 +194,7 @@ def run_evaluation_thread(project_path, progress_window, result_queue):
             cmd = f'''
             cd /d "{project_path}" && 
             conda activate img_reg && 
-            python evaluate/evaluate.py --dataset "sat_opt_sar"
+            python evaluate/evaluate.py --dataset "{project_path}"
             '''
             
             # 在Windows上使用cmd运行
@@ -214,7 +214,7 @@ def run_evaluation_thread(project_path, progress_window, result_queue):
             source $(conda info --base)/etc/profile.d/conda.sh &&
             conda activate img_reg &&
             cd "{project_path}" &&
-            python evaluate/evaluate.py --dataset "sat_opt_sar"
+            python evaluate/evaluate.py --dataset "{project_path}"
             '''
             
             process = subprocess.Popen(
@@ -237,7 +237,7 @@ def run_evaluation_thread(project_path, progress_window, result_queue):
             return
             
         # 更新状态
-        progress_window.update_status("正在执行评估程序...", "python evaluate/evaluate.py --dataset 'sat_opt_sar'")
+        progress_window.update_status("正在执行评估程序...", f"python evaluate/evaluate.py --dataset \"{project_path}\"")
         
         # 实时输出结果
         print("=" * 50)
@@ -376,7 +376,7 @@ def main():
             f"执行命令:\n"
             f"conda activate img_reg\n"
             f"cd {project_path}\n"
-            f"python evaluate/evaluate.py --dataset 'sat_opt_sar'\n\n"
+            f"python evaluate/evaluate.py --dataset \"{project_path}\"\n\n"
             f"是否继续?"
         )
         
