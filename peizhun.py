@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-程序启动辅助脚本（带进度条版本）
+程序启动辅助脚本（带进度条版本 - Windows线程安全）
 用于选择文件夹并启动 img_reg 项目的评估程序
 """
 
@@ -37,6 +37,12 @@ class ProgressWindow:
         # 控制变量
         self.cancelled = False
         self.process = None
+        
+        # 状态更新队列
+        self.status_queue = queue.Queue()
+        
+        # 开始状态检查循环
+        self.check_status_updates()
         
     def center_window(self):
         """将窗口居中显示"""
@@ -93,11 +99,23 @@ class ProgressWindow:
         # 开始进度条动画
         self.progress.start(10)
         
-    def update_status(self, status, detail=""):
-        """更新状态信息"""
-        self.status_label.config(text=status)
-        self.detail_label.config(text=detail)
-        self.root.update()
+    def check_status_updates(self):
+        """检查状态更新队列（在主线程中运行）"""
+        try:
+            while True:
+                status, detail = self.status_queue.get_nowait()
+                self.status_label.config(text=status)
+                self.detail_label.config(text=detail)
+        except queue.Empty:
+            pass
+        
+        # 继续检查（每100毫秒检查一次）
+        if not self.cancelled:
+            self.root.after(100, self.check_status_updates)
+        
+    def update_status_safe(self, status, detail=""):
+        """线程安全的状态更新方法"""
+        self.status_queue.put((status, detail))
         
     def on_cancel(self):
         """取消按钮点击事件"""
@@ -116,6 +134,7 @@ class ProgressWindow:
         
     def close(self):
         """关闭窗口"""
+        self.cancelled = True
         self.progress.stop()
         self.root.destroy()
 
@@ -160,7 +179,7 @@ def run_evaluation_thread(project_path, progress_window, result_queue):
     """
     try:
         # 更新状态
-        progress_window.update_status("检查环境...", "验证conda环境和项目文件")
+        progress_window.update_status_safe("检查环境...", "验证conda环境和项目文件")
         
         # 检查路径是否存在
         if not os.path.exists(project_path):
@@ -182,7 +201,7 @@ def run_evaluation_thread(project_path, progress_window, result_queue):
             return
             
         # 更新状态
-        progress_window.update_status("激活conda环境...", "激活 img_reg 环境")
+        progress_window.update_status_safe("激活conda环境...", "激活 img_reg 环境")
         
         print(f"切换到项目目录: {project_path}")
         print("激活conda环境: img_reg")
@@ -237,7 +256,7 @@ def run_evaluation_thread(project_path, progress_window, result_queue):
             return
             
         # 更新状态
-        progress_window.update_status("正在执行评估程序...", f"python evaluate/evaluate.py --dataset \"{project_path}\"")
+        progress_window.update_status_safe("正在执行评估程序...", f"python evaluate/evaluate.py --dataset \"{project_path}\"")
         
         # 实时输出结果
         print("=" * 50)
@@ -265,7 +284,7 @@ def run_evaluation_thread(project_path, progress_window, result_queue):
                 if line:
                     # 限制显示长度
                     display_line = line[:80] + "..." if len(line) > 80 else line
-                    progress_window.update_status("正在执行评估程序...", display_line)
+                    progress_window.update_status_safe("正在执行评估程序...", display_line)
         
         # 获取剩余输出和错误信息
         stdout, stderr = process.communicate()
@@ -299,6 +318,10 @@ def run_evaluation(project_path):
     Args:
         project_path: img_reg项目的根目录路径
     """
+    # 创建主窗口
+    main_root = tk.Tk()
+    main_root.withdraw()  # 隐藏主窗口
+    
     # 创建进度窗口
     progress_window = ProgressWindow("执行评估程序")
     
@@ -313,26 +336,51 @@ def run_evaluation(project_path):
     )
     thread.start()
     
-    # 等待结果
-    while thread.is_alive():
-        progress_window.root.update()
-        time.sleep(0.1)
-        
-        # 检查是否有结果
+    # 主循环等待结果
+    result = None
+    while thread.is_alive() and not progress_window.cancelled:
         try:
-            result = result_queue.get_nowait()
+            # 更新GUI
+            progress_window.root.update()
+            main_root.update()
+            
+            # 检查是否有结果
+            try:
+                result = result_queue.get_nowait()
+                break
+            except queue.Empty:
+                time.sleep(0.1)
+                continue
+                
+        except tk.TclError:
+            # 窗口被关闭
             break
-        except queue.Empty:
-            continue
-    else:
-        # 线程结束，获取结果
+    
+    # 如果线程还在运行但窗口被取消，等待线程结束
+    if thread.is_alive() and progress_window.cancelled:
+        thread.join(timeout=2)
+    
+    # 获取结果（如果还没有的话）
+    if result is None:
         try:
             result = result_queue.get_nowait()
         except queue.Empty:
-            result = ("error", "程序执行异常结束")
+            if progress_window.cancelled:
+                result = ("cancelled", "用户取消了程序执行")
+            else:
+                result = ("error", "程序执行异常结束")
     
     # 关闭进度窗口
-    progress_window.close()
+    try:
+        progress_window.close()
+    except:
+        pass
+    
+    # 关闭主窗口
+    try:
+        main_root.destroy()
+    except:
+        pass
     
     # 处理结果
     result_type, message = result[0], result[1]
@@ -351,10 +399,6 @@ def main():
     """
     主函数
     """
-    # 创建主窗口（隐藏）
-    root = tk.Tk()
-    root.withdraw()
-    
     print("程序启动辅助脚本")
     print("=" * 30)
     
@@ -392,8 +436,9 @@ def main():
         else:
             print("脚本执行失败或被取消!")
             
-    finally:
-        root.destroy()
+    except Exception as e:
+        print(f"程序异常: {str(e)}")
+        messagebox.showerror("程序异常", f"程序运行过程中出现异常:\n{str(e)}")
 
 if __name__ == "__main__":
     try:
@@ -402,6 +447,12 @@ if __name__ == "__main__":
         print("\n用户中断执行")
     except Exception as e:
         print(f"程序异常: {str(e)}")
-        messagebox.showerror("程序异常", f"程序运行过程中出现异常:\n{str(e)}")
+        try:
+            messagebox.showerror("程序异常", f"程序运行过程中出现异常:\n{str(e)}")
+        except:
+            pass
     finally:
-        input("按Enter键退出...")
+        try:
+            input("按Enter键退出...")
+        except:
+            pass
