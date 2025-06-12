@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>生源画像 - 研究生招生质量分析</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* --- 1. 全局与根元素美化 --- */
+    :root {
+      --primary-color: #0072ff;
+      --secondary-color: #ff9900;
+      --danger-color: #d43f3a;
+      --text-color: #333;
+      --bg-color: #f4f7fc;
+      --card-shadow: 0 10px 30px -15px rgba(0, 0, 0, 0.2);
+      --card-hover-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      overflow-x: hidden;
+      font-family: 'Noto Sans SC', 'Roboto', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* --- 2. 头部与导航栏增强 --- */
+    header {
+      backdrop-filter: blur(12px) saturate(180%);
+      background: rgba(255, 255, 255, 0.75);
+      padding: 1rem 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      width: 100%;
+    }
+
+    header img {
+      height: 50px;
+      transition: transform 0.3s ease;
+    }
+    header img:hover {
+        transform: rotate(-10deg) scale(1.1);
+    }
+
+    nav ul {
+      display: flex;
+      list-style: none;
+      gap: 2.5rem;
+    }
+
+    nav a {
+      text-decoration: none;
+      color: var(--primary-color);
+      font-weight: 500;
+      padding: 0.5rem 0;
+      position: relative;
+      font-size: 1.1em;
+      transition: color 0.3s ease;
+    }
+    nav a::after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      bottom: 0;
+      left: 0;
+      background-color: var(--primary-color);
+      transform: scaleX(0);
+      transform-origin: bottom right;
+      transition: transform 0.3s ease-out;
+    }
+
+    nav a:hover {
+      color: #0056b3;
+    }
+
+    nav a:hover::after {
+      transform: scaleX(1);
+      transform-origin: bottom left;
+    }
+    
+    .dropdown-content {
+      display: block;
+      position: absolute;
+      top: 2.5rem;
+      left: 0;
+      background-color: white;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 200;
+      opacity: 0;
+      transform: translateY(10px);
+      visibility: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+      min-width: 160px;
+    }
+
+    .dropdown:hover .dropdown-content {
+      opacity: 1;
+      transform: translateY(0);
+      visibility: visible;
+    }
+
+    .dropdown-content a {
+        color: var(--text-color);
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+        text-align: left;
+        font-weight: 400;
+        font-size: 1em;
+    }
+
+    .dropdown-content a:hover {
+        background-color: #f1f1f1;
+        color: var(--primary-color);
+    }
+
+    /* --- 3. 页面主体与卡片布局 --- */
+    .container {
+      padding: 2.5rem;
+      display: grid;
+      grid-template-columns: 1fr; /* Single column for profile */
+      gap: 2.5rem;
+      justify-items: center; /* Center the card */
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      backdrop-filter: blur(5px);
+      border-radius: 20px;
+      padding: 2.5rem;
+      box-shadow: var(--card-shadow);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      width: 90%; /* Make card wider */
+      max-width: 800px; /* Limit max width */
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeInUp 0.5s ease-out forwards;
+      text-align: center;
+    }
+
+    .card:hover {
+      transform: translateY(-8px) scale(1.01);
+      box-shadow: var(--card-hover-shadow);
+    }
+    
+    .card h2 {
+      margin-bottom: 1.5rem;
+      font-size: 1.8rem;
+      text-align: center;
+      font-weight: 700;
+      position: relative;
+      padding-bottom: 0.5rem;
+      color: var(--primary-color);
+    }
+    .card h2::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 3px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--primary-color), #89cff0);
+    }
+
+    /* --- 生源画像特定样式 --- */
+    .student-selector {
+        margin-bottom: 2rem;
+    }
+
+    .student-selector label {
+        font-size: 1.1rem;
+        color: var(--text-color);
+        margin-right: 1rem;
+        font-weight: 500;
+    }
+
+    .student-selector select {
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        font-size: 1rem;
+        background-color: white;
+        appearance: none; /* Remove default arrow */
+        background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%230072ff%22%20d%3D%22M287%2C197.398L154.2%2C64.598c-3.1-3.1-8.2-3.1-11.3%2C0l-132.8%2C132.8c-3.1%2C3.1-3.1%2C8.2%2C0%2C11.3c3.1%2C3.1%2C8.2%2C3.1%2C11.3%2C0l127.1-127.1l127.1%2C127.1c3.1%2C3.1%2C8.2%2C3.1%2C11.3%2C0C290.1%2C205.598%2C290.1%2C200.498%2C287%2C197.398z%22%2F%3E%3C%2Fsvg%3E');
+        background-repeat: no-repeat;
+        background-position: right 0.7em top 50%, 0 0;
+        background-size: 0.65em auto, 100%;
+        cursor: pointer;
+        outline: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .student-selector select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(0, 114, 255, 0.2);
+    }
+
+
+    .student-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 2rem;
+        text-align: left;
+    }
+
+    .detail-item {
+        background: rgba(255, 255, 255, 0.4);
+        padding: 0.8rem 1.2rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        color: #444;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+    .detail-item strong {
+        color: var(--primary-color);
+        margin-right: 0.5rem;
+    }
+
+    .chart-container {
+      width: 100%;
+      max-width: 600px;
+      margin: 2rem auto 0;
+      padding: 1.5rem;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 15px;
+    }
+    
+    /* --- 5. 页脚 --- */
+    footer {
+      text-align: center;
+      padding: 2.5rem;
+      font-size: 0.9rem;
+      color: #888;
+      margin-top: 2rem;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <img src="buptlogo.png" alt="北邮Logo">
+    <nav>
+      <ul>
+        <li class="dropdown">
+          <a href="zhaoshengchengxiao.html">招生成效</a>
+          <div class="dropdown-content">
+            <a href="zhaoshengchengxiao.html#masters">硕士生招生成效</a>
+            <a href="zhaoshengchengxiao.html#doctors">博士生招生成效</a>
+          </div>
+        </li>
+        <li><a href="yuanxiaoduibi.html">院校对比</a></li>
+        <li><a href="shengyuanhuaxiang.html">生源画像</a></li>
+        <li><a href="zhaoshengdengji.html">招生工作登记</a></li>
+        <li><a href="#">用户中心</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2>研究生生源画像</h2>
+      
+      <div class="student-selector">
+        <label for="studentSelect">选择学生：</label>
+        <select id="studentSelect">
+          <option value="zhangsan">张三</option>
+          <option value="lisi">李四</option>
+          </select>
+      </div>
+
+      <div class="student-details" id="studentDetails">
+        </div>
+
+      <div class="chart-container">
+        <canvas id="studentRadarChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2025 北京邮电大学人工智能学院 - 数据分析展示平台
+  </footer>
+
+  <script>
+    const studentData = {
+      "zhangsan": {
+        "name": "张三",
+        "degree": "硕士",
+        "region": "北京",
+        "college": "人工智能学院",
+        "major": "计算机科学与技术",
+        "supervisor": "王教授",
+        "examType": "全国统考",
+        "gender": "男",
+        "education": "985高校本科",
+        "politicalStatus": "中共党员",
+        "researchAchievements": {
+            "papers": 2,
+            "patents": 0,
+            "projects": 1,
+            "awards": 0
+        },
+        "awards": ["国家奖学金", "优秀毕业生"]
+      },
+      "lisi": {
+        "name": "李四",
+        "degree": "博士",
+        "region": "上海",
+        "college": "信息与通信工程学院",
+        "major": "信息与通信工程",
+        "supervisor": "赵教授",
+        "examType": "直博",
+        "gender": "女",
+        "education": "211高校硕士",
+        "politicalStatus": "共青团员",
+        "researchAchievements": {
+            "papers": 4,
+            "patents": 1,
+            "projects": 2,
+            "awards": 1
+        },
+        "awards": ["校级优秀学生干部"]
+      }
+    };
+
+    let radarChart;
+
+    function createRadarChart(canvasId, data) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        if (radarChart) {
+            radarChart.destroy();
+        }
+
+        const metrics = [
+            '科研成果 (论文)',
+            '科研成果 (专利)',
+            '科研成果 (项目)',
+            '科研成果 (科技奖)',
+            '获奖经历 (数量)',
+            '教育经历 (层次)',
+            '政治面貌 (活跃度)' // Example: map to numerical value
+        ];
+
+        // Map textual data to numerical values for radar chart
+        // This is a simplified mapping for demonstration purposes.
+        // Real-world scenarios might use more sophisticated scoring.
+        const mappedData = [
+            data.researchAchievements.papers,
+            data.researchAchievements.patents,
+            data.researchAchievements.projects,
+            data.researchAchievements.awards,
+            data.awards.length,
+            data.education.includes('985') ? 5 : (data.education.includes('211') ? 4 : 3), // Higher score for better education
+            data.politicalStatus === '中共党员' ? 5 : (data.politicalStatus === '共青团员' ? 3 : 1) // Higher score for党员
+        ];
+
+        radarChart = new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: metrics,
+                datasets: [{
+                    label: data.name + '的综合画像',
+                    data: mappedData,
+                    backgroundColor: 'rgba(0, 114, 255, 0.4)',
+                    borderColor: 'rgba(0, 114, 255, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(0, 114, 255, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(0, 114, 255, 1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: '#333'
+                        }
+                    },
+                    title: {
+                        display: false,
+                    }
+                },
+                scales: {
+                    r: {
+                        angleLines: {
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        pointLabels: {
+                            color: '#555',
+                            font: {
+                                size: 14
+                            }
+                        },
+                        ticks: {
+                            beginAtZero: true,
+                            max: 5, // Max value for radar chart
+                            stepSize: 1,
+                            color: '#777',
+                            showLabelBackdrop: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateStudentProfile() {
+      const selectedStudent = document.getElementById('studentSelect').value;
+      const student = studentData[selectedStudent];
+      const detailsDiv = document.getElementById('studentDetails');
+      
+      detailsDiv.innerHTML = `
+        <div class="detail-item"><strong>姓名:</strong> ${student.name}</div>
+        <div class="detail-item"><strong>学位:</strong> ${student.degree}</div>
+        <div class="detail-item"><strong>地域:</strong> ${student.region}</div>
+        <div class="detail-item"><strong>报考学院:</strong> ${student.college}</div>
+        <div class="detail-item"><strong>报考专业:</strong> ${student.major}</div>
+        <div class="detail-item"><strong>报考导师:</strong> ${student.supervisor}</div>
+        <div class="detail-item"><strong>考核类型:</strong> ${student.examType}</div>
+        <div class="detail-item"><strong>性别:</strong> ${student.gender}</div>
+        <div class="detail-item"><strong>教育经历:</strong> ${student.education}</div>
+        <div class="detail-item"><strong>政治面貌:</strong> ${student.politicalStatus}</div>
+        <div class="detail-item"><strong>科研成果:</strong> 论文 ${student.researchAchievements.papers}篇, 专利 ${student.researchAchievements.patents}项, 项目 ${student.researchAchievements.projects}个, 科技奖 ${student.researchAchievements.awards}项</div>
+        <div class="detail-item"><strong>获奖经历:</strong> ${student.awards.join(', ') || '无'}</div>
+      `;
+
+      createRadarChart('studentRadarChart', student);
+    }
+
+    window.onload = function() {
+      document.getElementById('studentSelect').addEventListener('change', updateStudentProfile);
+      updateStudentProfile(); // Initialize with default student
+    };
+  </script>
+</body>
+
+</html>
